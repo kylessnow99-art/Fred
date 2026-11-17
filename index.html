@@ -1,547 +1,95 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BSC / Trust Wallet & BEP-20 USDT Diagnostic DApp</title>
-  <!-- Tailwind CSS for clean, responsive dark-mode styling -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Ethers.js v6 UMD CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
-  <!-- Google Fonts: Inter & JetBrains Mono -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            mono: ['JetBrains Mono', 'monospace'],
-          },
-        },
-      },
-    };
-  </script>
-  <style>
-    /* Custom scrollbar for log viewer */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #0f172a;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #334155;
-      border-radius: 9999px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #475569;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trust Wallet BSC Diagnostic</title>
+    <style>
+        body { background: #0f172a; color: #f8fafc; font-family: sans-serif; padding: 16px; margin: 0; }
+        .card { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+        button { background: #3b82f6; color: white; border: none; padding: 12px 16px; border-radius: 8px; font-size: 16px; width: 100%; margin-top: 8px; font-weight: bold; }
+        pre { background: #090d16; padding: 10px; border-radius: 6px; font-size: 11px; overflow-x: auto; color: #38bdf8; max-height: 150px; }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-amber-500/30 selection:text-amber-200">
-
-  <!-- Main Container -->
-  <div class="max-w-5xl mx-auto px-4 py-6 sm:px-6 lg:px-8 space-y-6">
-
-    <!-- Header -->
-    <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
-      <div>
-        <div class="flex items-center gap-2.5">
-          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 font-bold text-sm">
-            BSC
-          </span>
-          <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white">
-            Web3 Provider &amp; BEP-20 USDT Diagnostic
-          </h1>
-        </div>
-        <p class="text-xs sm:text-sm text-slate-400 mt-1">
-          Inspect EIP-1193 / EIP-6963 providers, force switch to BNB Smart Chain (<code class="text-amber-400">0x38</code>), and test BEP-20 <code class="text-amber-400">approve()</code> prompts.
-        </p>
-      </div>
-
-      <!-- Status Pill -->
-      <div class="flex items-center gap-2 self-start sm:self-auto bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2">
-        <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></span>
-        <span id="statusText" class="text-xs font-medium text-slate-300">Disconnected</span>
-      </div>
-    </header>
-
-    <!-- Notice / Toast Banner -->
-    <div id="toastBanner" class="hidden rounded-xl border px-4 py-3 text-xs sm:text-sm font-medium transition-all"></div>
-
-    <!-- Top Grid: Provider Diagnostics & Wallet / Chain Controls -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-      <!-- 1. Provider & Environment Diagnostics Panel -->
-      <section class="lg:col-span-6 bg-slate-900/90 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-lg">
-        <div>
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-              </svg>
-              1. Provider &amp; Environment Diagnostics
-            </h2>
-            <button id="btnRescan" type="button" class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
-              Re-scan
-            </button>
-          </div>
-
-          <!-- Provider Selector (if multiple injected/EIP-6963 providers exist) -->
-          <div class="mb-4">
-            <label for="providerSelect" class="block text-xs font-medium text-slate-400 mb-1.5">
-              Active Injected / EIP-6963 Provider Target
-            </label>
-            <select id="providerSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-amber-500">
-              <option value="default">Scanning providers...</option>
-            </select>
-          </div>
-
-          <!-- Diagnostic Flags Grid -->
-          <div class="grid grid-cols-2 gap-2.5 text-xs font-mono">
-            <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-2.5">
-              <span class="text-slate-500 block text-[11px]">window.ethereum</span>
-              <span id="flagEthereum" class="font-semibold text-slate-200">—</span>
-            </div>
-            <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-2.5">
-              <span class="text-slate-500 block text-[11px]">window.trustwallet</span>
-              <span id="flagTrustGlobal" class="font-semibold text-slate-200">—</span>
-            </div>
-            <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-2.5">
-              <span class="text-slate-500 block text-[11px]">isTrust / isTrustWallet</span>
-              <span id="flagIsTrust" class="font-semibold text-slate-200">—</span>
-            </div>
-            <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-2.5">
-              <span class="text-slate-500 block text-[11px]">isMetaMask</span>
-              <span id="flagIsMetaMask" class="font-semibold text-slate-200">—</span>
-            </div>
-            <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-2.5">
-              <span class="text-slate-500 block text-[11px]">Provider chainId</span>
-              <span id="flagChainId" class="font-semibold text-amber-400">—</span>
-            </div>
-            <div class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-2.5">
-              <span class="text-slate-500 block text-[11px]">networkVersion / EIP-6963</span>
-              <span id="flagNetVer" class="font-semibold text-slate-200">—</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
-          <span>User Agent Hint:</span>
-          <span id="uaHint" class="font-mono text-slate-300 truncate max-w-[230px]">Detecting...</span>
-        </div>
-      </section>
-
-      <!-- 2. Wallet Connection & BSC Chain Switcher -->
-      <section class="lg:col-span-6 bg-slate-900/90 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between shadow-lg">
-        <div>
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2 mb-4">
-            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            2. Wallet Connection &amp; BSC Switcher
-          </h2>
-
-          <!-- Connected Account & Chain Info Box -->
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2.5 mb-4">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-slate-400">Connected Account:</span>
-              <span id="connectedAddress" class="font-mono text-slate-200 font-medium">Not Connected</span>
-            </div>
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-slate-400">Active Chain:</span>
-              <span id="activeChainDisplay" class="font-mono text-slate-200 font-medium">Unknown</span>
-            </div>
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-slate-400">BNB Gas Balance:</span>
-              <span id="bnbBalanceDisplay" class="font-mono text-slate-200">—</span>
-            </div>
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-slate-400">USDT (BEP-20) Balance:</span>
-              <span id="usdtBalanceDisplay" class="font-mono text-emerald-400">—</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="space-y-2.5">
-          <button id="btnAutoHandshake" type="button" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-400 hover:to-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-950/40 transition flex items-center justify-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            Run Full Auto-Handshake (Connect + Force 0x38)
-          </button>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <button id="btnConnect" type="button" class="w-full py-2.5 px-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-sky-950/50 transition flex items-center justify-center gap-1.5">
-              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              1. Connect (eth_requestAccounts)
-            </button>
-
-            <button id="btnSwitchBsc" type="button" class="w-full py-2.5 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-semibold text-xs sm:text-sm shadow-md shadow-amber-950/40 transition flex items-center justify-center gap-1.5">
-              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              2. Switch / Add BSC (0x38)
-            </button>
-          </div>
-        </div>
-      </section>
+<body>
+    <h2>BSC Connection Test</h2>
+    
+    <div class="card">
+        <h3>Status</h3>
+        <p id="status">Initializing...</p>
+        <button onclick="runTest()">Connect & Switch to BSC (0x38)</button>
     </div>
 
-    <!-- 3. BEP-20 USDT Approval Tester -->
-    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-lg">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          3. BEP-20 USDT Approval Prompt Tester
-        </h2>
-        <button id="btnCheckAllowance" type="button" class="self-start sm:self-auto text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
-          Read Current Allowance
-        </button>
-      </div>
+    <div class="card">
+        <h3>Live Console Logs</h3>
+        <pre id="logs">Waiting for action...</pre>
+    </div>
 
-      <!-- Safety Warning -->
-      <div class="mb-5 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3.5 text-xs text-amber-200 flex items-start gap-3">
-        <svg class="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <div>
-          <strong class="font-semibold text-amber-300">Mainnet Transaction Notice:</strong>
-          This sends a real <code class="font-mono text-amber-100">approve(address,uint256)</code> prompt on BNB Smart Chain Mainnet (Chain ID 56). Always verify the Spender Address before confirming in your wallet, or use <code class="font-mono text-amber-100">0</code> USDT to test a safe revoke prompt.
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <!-- Token Contract Address -->
-        <div>
-          <label for="tokenAddress" class="block text-xs font-medium text-slate-400 mb-1.5">
-            BSC USDT Contract (BEP-20, 18 Decimals)
-          </label>
-          <input
-            id="tokenAddress"
-            type="text"
-            value="0x55d398326f99059fF775485246999027B3197955"
-            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
-          />
-        </div>
-
-        <!-- Spender Address -->
-        <div>
-          <div class="flex items-center justify-between mb-1.5">
-            <label for="spenderAddress" class="block text-xs font-medium text-slate-400">
-              Spender Address
-            </label>
-            <div class="flex items-center gap-1.5">
-              <button type="button" id="btnSpenderSelf" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700">
-                Self (Safe)
-              </button>
-              <button type="button" id="btnSpenderPancake" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700">
-                PancakeV2
-              </button>
-            </div>
-          </div>
-          <input
-            id="spenderAddress"
-            type="text"
-            value="0x10ED43C718714eb63d5aA57B78B54704E256024E"
-            placeholder="0x..."
-            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
-          />
-        </div>
-
-        <!-- Approval Amount -->
-        <div>
-          <div class="flex items-center justify-between mb-1.5">
-            <label for="approveAmount" class="block text-xs font-medium text-slate-400">
-              Approval Amount (USDT)
-            </label>
-            <div class="flex items-center gap-1.5">
-              <button type="button" id="btnSetZero" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700">
-                0 (Revoke)
-              </button>
-              <button type="button" id="btnSetOne" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700">
-                1 USDT
-              </button>
-            </div>
-          </div>
-          <input
-            id="approveAmount"
-            type="text"
-            inputmode="decimal"
-            value="1"
-            placeholder="1.0"
-            class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-emerald-500"
-          />
-        </div>
-      </div>
-
-      <!-- Encoded Calldata Preview & Submit -->
-      <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 pt-2">
-        <div class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 overflow-x-auto">
-          <span class="text-[11px] text-slate-500 block">Encoded Calldata Preview (Wei / Raw uint256):</span>
-          <code id="calldataPreview" class="text-xs font-mono text-slate-300 whitespace-nowrap">
-            0x095ea7b3...
-          </code>
-        </div>
-
-        <button id="btnApproveUsdt" type="button" class="py-3 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-sm shadow-md shadow-emerald-950/50 transition shrink-0 flex items-center justify-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
-          Prompt BEP-20 USDT Approval
-        </button>
-      </div>
-    </section>
-
-    <!-- 4. Live Verbose Console / Diagnostic Log Viewer -->
-    <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-lg">
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <div class="flex items-center gap-2">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-            <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            4. Live Verbose Diagnostic Console
-          </h2>
-          <span id="logCountBadge" class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
-            0 entries
-          </span>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <button id="btnCopyLogs" type="button" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            Copy Logs
-          </button>
-          <button id="btnClearLogs" type="button" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/70 text-slate-300 hover:text-rose-200 border border-slate-700 transition">
-            Clear Logs
-          </button>
-        </div>
-      </div>
-
-      <div id="logContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-3.5 h-80 overflow-y-auto font-mono text-xs space-y-2 leading-relaxed">
-        <!-- Log entries injected here -->
-      </div>
-    </section>
-
-  </div>
-
-  <!-- Application Logic -->
-  <script>
-    (function () {
-      'use strict';
-
-      // =========================================================================
-      // Constants & Configuration
-      // =========================================================================
-      const BSC_CHAIN_ID_DEC = 56;
-      const BSC_CHAIN_ID_HEX = '0x38';
-      const BSC_CHAIN_PARAMS = {
-        chainId: BSC_CHAIN_ID_HEX,
-        chainName: 'BNB Smart Chain',
-        nativeCurrency: {
-          name: 'BNB',
-          symbol: 'BNB',
-          decimals: 18,
-        },
-        rpcUrls: ['https://bsc-dataseed.bnbchain.org', 'https://bsc-dataseed1.binance.org'],
-        blockExplorerUrls: ['https://bscscan.com'],
-      };
-
-      // Minimal ERC-20 / BEP-20 ABI for approve, allowance, balanceOf, decimals, symbol
-      const BEP20_ABI = [
-        'function approve(address spender, uint256 amount) external returns (bool)',
-        'function allowance(address owner, address spender) external view returns (uint256)',
-        'function balanceOf(address account) external view returns (uint256)',
-        'function decimals() external view returns (uint8)',
-        'function symbol() external view returns (string)'
-      ];
-
-      // =========================================================================
-      // Application State
-      // =========================================================================
-      const state = {
-        discoveredProviders: [], // Array of { id, name, rdns, provider, source }
-        activeProvider: null,
-        userAddress: null,
-        currentChainId: null,
-        logEntries: [],
-        attachedListenersFor: new WeakSet(),
-      };
-
-      // =========================================================================
-      // DOM References
-      // =========================================================================
-      const el = {
-        statusDot: document.getElementById('statusDot'),
-        statusText: document.getElementById('statusText'),
-        toastBanner: document.getElementById('toastBanner'),
-        providerSelect: document.getElementById('providerSelect'),
-        btnRescan: document.getElementById('btnRescan'),
-        flagEthereum: document.getElementById('flagEthereum'),
-        flagTrustGlobal: document.getElementById('flagTrustGlobal'),
-        flagIsTrust: document.getElementById('flagIsTrust'),
-        flagIsMetaMask: document.getElementById('flagIsMetaMask'),
-        flagChainId: document.getElementById('flagChainId'),
-        flagNetVer: document.getElementById('flagNetVer'),
-        uaHint: document.getElementById('uaHint'),
-        connectedAddress: document.getElementById('connectedAddress'),
-        activeChainDisplay: document.getElementById('activeChainDisplay'),
-        bnbBalanceDisplay: document.getElementById('bnbBalanceDisplay'),
-        usdtBalanceDisplay: document.getElementById('usdtBalanceDisplay'),
-        btnAutoHandshake: document.getElementById('btnAutoHandshake'),
-        btnConnect: document.getElementById('btnConnect'),
-        btnSwitchBsc: document.getElementById('btnSwitchBsc'),
-        btnCheckAllowance: document.getElementById('btnCheckAllowance'),
-        tokenAddress: document.getElementById('tokenAddress'),
-        spenderAddress: document.getElementById('spenderAddress'),
-        btnSpenderSelf: document.getElementById('btnSpenderSelf'),
-        btnSpenderPancake: document.getElementById('btnSpenderPancake'),
-        approveAmount: document.getElementById('approveAmount'),
-        btnSetZero: document.getElementById('btnSetZero'),
-        btnSetOne: document.getElementById('btnSetOne'),
-        calldataPreview: document.getElementById('calldataPreview'),
-        btnApproveUsdt: document.getElementById('btnApproveUsdt'),
-        logContainer: document.getElementById('logContainer'),
-        logCountBadge: document.getElementById('logCountBadge'),
-        btnCopyLogs: document.getElementById('btnCopyLogs'),
-        btnClearLogs: document.getElementById('btnClearLogs'),
-      };
-// ... existing code ... -->
-      async function connectWallet() {
-        try {
-          if (!state.activeProvider) {
-            showToast('No Web3 provider detected. Open this page inside Trust Wallet DApp Browser.', 'error');
-            return false;
-          }
-
-          const accounts = await rpcCall('eth_requestAccounts', []);
-          if (!accounts || accounts.length === 0) {
-            showToast('Wallet returned an empty accounts array.', 'warn');
-            return false;
-          }
-
-          state.userAddress = accounts[0];
-          const chainHex = await rpcCall('eth_chainId', []);
-          state.currentChainId = normalizeChainIdHex(chainHex);
-
-          inspectActiveProvider();
-          updateConnectionUI();
-          showToast(`Connected: ${state.userAddress.slice(0, 6)}...${state.userAddress.slice(-4)}`, 'success');
-          await refreshBalancesAndAllowance();
-          return true;
-        } catch (err) {
-          const s = serializeError(err);
-          showToast(`Connection failed (${s.code ?? 'ERR'}): ${s.message}`, 'error');
-          return false;
+    <script>
+        function log(msg) {
+            const pre = document.getElementById('logs');
+            pre.innerText += "\n[" + new Date().toLocaleTimeString() + "] " + msg;
+            pre.scrollTop = pre.scrollHeight;
+            console.log(msg);
         }
-      }
 
-      async function switchOrAddBsc() {
-        try {
-          if (!state.activeProvider) {
-            showToast('No Web3 provider detected.', 'error');
-            return false;
-          }
+        window.onerror = function(msg, url, line) {
+            log("UI ERROR: " + msg + " (Line " + line + ")");
+        };
 
-          addLog('INFO', `Attempting wallet_switchEthereumChain to BNB Smart Chain (${BSC_CHAIN_ID_HEX})...`);
-          try {
-            await rpcCall('wallet_switchEthereumChain', [{ chainId: BSC_CHAIN_ID_HEX }]);
-            addLog('SUCCESS', 'wallet_switchEthereumChain succeeded for 0x38');
-          } catch (switchErr) {
-            const code = switchErr?.code ?? switchErr?.data?.originalError?.code;
-            const msg = (switchErr?.message || '').toLowerCase();
-
-            // 4902 = Unrecognized chain ID; some mobile wallets return -32603 or string message
-            const shouldTryAdd =
-              code === 4902 ||
-              code === -32603 ||
-              msg.includes('unrecognized chain') ||
-              msg.includes('not added') ||
-              msg.includes('try adding the chain');
-
-            if (shouldTryAdd) {
-              addLog('WARN', `Chain 0x38 not found or unsupported in switch (code: ${code}). Falling back to wallet_addEthereumChain...`);
-              await rpcCall('wallet_addEthereumChain', [BSC_CHAIN_PARAMS]);
-              addLog('SUCCESS', 'wallet_addEthereumChain succeeded for BNB Smart Chain');
+        window.addEventListener('DOMContentLoaded', () => {
+            log("DOM fully loaded.");
+            const p = window.trustwallet || window.ethereum;
+            if (p) {
+                log("Provider detected: " + (window.trustwallet ? "window.trustwallet" : "window.ethereum"));
             } else {
-              throw switchErr;
+                log("WARNING: No window.trustwallet or window.ethereum found immediately.");
             }
-          }
+        });
 
-          // Re-verify active chainId after switch/add
-          const updatedChain = await rpcCall('eth_chainId', []);
-          state.currentChainId = normalizeChainIdHex(updatedChain);
-          inspectActiveProvider();
-          updateConnectionUI();
+        async function runTest() {
+            try {
+                log("Button tapped. Resolving provider...");
+                const provider = window.trustwallet || window.ethereum || (window.ethereum?.providers?.find(p => p.isTrust));
+                
+                if (!provider) {
+                    throw new Error("No EVM provider injected by Trust Wallet.");
+                }
 
-          if (state.currentChainId === BSC_CHAIN_ID_HEX) {
-            showToast('Switched to BNB Smart Chain (0x38 / Chain ID 56)!', 'success');
-            await refreshBalancesAndAllowance();
-            return true;
-          } else {
-            showToast(`Wallet reported chain ${state.currentChainId} instead of 0x38.`, 'warn');
-            return false;
-          }
-        } catch (err) {
-          const s = serializeError(err);
-          showToast(`Chain switch failed (${s.code ?? 'ERR'}): ${s.message}`, 'error');
-          return false;
+                log("Requesting accounts (eth_requestAccounts)...");
+                const accounts = await provider.request({ method: 'eth_requestAccounts' });
+                log("Connected account: " + accounts[0]);
+
+                log("Attempting to switch to BNB Smart Chain (0x38)...");
+                try {
+                    await provider.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0x38' }]
+                    });
+                    log("SUCCESS: Switched to BNB Smart Chain!");
+                } catch (switchErr) {
+                    log("Switch error code: " + switchErr.code);
+                    if (switchErr.code === 4902 || switchErr.code === -32603) {
+                        log("Chain 0x38 missing. Adding network via wallet_addEthereumChain...");
+                        await provider.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: '0x38',
+                                chainName: 'BNB Smart Chain',
+                                nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+                                rpcUrls: ['https://bsc-dataseed.bnbchain.org'],
+                                blockExplorerUrls: ['https://bscscan.com']
+                            }]
+                        });
+                        log("SUCCESS: BNB Smart Chain added and switched!");
+                    } else {
+                        throw switchErr;
+                    }
+                }
+            } catch (err) {
+                log("ERROR: " + (err.message || JSON.stringify(err)));
+            }
         }
-      }
-
-      async function runFullAutoHandshake() {
-        addLog('INFO', '=== Starting Unified Auto-Handshake (Connect -> Verify -> Force BSC 0x38) ===');
-        const connected = await connectWallet();
-        if (!connected) {
-          addLog('WARN', 'Auto-Handshake halted: Account authorization did not complete.');
-          return;
-        }
-        if (state.currentChainId !== BSC_CHAIN_ID_HEX) {
-          await switchOrAddBsc();
-        } else {
-          addLog('SUCCESS', 'Auto-Handshake complete: Already connected on BNB Smart Chain (0x38).');
-        }
-      }
-// ... existing code ... -->
-      el.providerSelect.addEventListener('change', (e) => {
-        selectProviderById(e.target.value);
-      });
-
-      el.btnAutoHandshake.addEventListener('click', runFullAutoHandshake);
-      el.btnConnect.addEventListener('click', connectWallet);
-      el.btnSwitchBsc.addEventListener('click', switchOrAddBsc);
-      el.btnCheckAllowance.addEventListener('click', () => readCurrentAllowance(false));
-      el.btnApproveUsdt.addEventListener('click', promptUsdtApproval);
-
-      el.btnSpenderSelf.addEventListener('click', () => {
-        if (!state.userAddress) {
-          showToast('Connect wallet first to fill your own address.', 'warn');
-          return;
-        }
-        el.spenderAddress.value = state.userAddress;
-        updateCalldataPreview();
-      });
-
-      el.btnSpenderPancake.addEventListener('click', () => {
-        el.spenderAddress.value = '0x10ED43C718714eb63d5aA57B78B54704E256024E';
-        updateCalldataPreview();
-      });
-
-      el.btnSetZero.addEventListener('click', () => {
-        el.approveAmount.value = '0';
-        updateCalldataPreview();
-      });
-// ... existing code ... -->
+    </script>
+</body>
+      </html>
